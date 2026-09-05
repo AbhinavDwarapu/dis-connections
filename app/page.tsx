@@ -1,67 +1,68 @@
-import Image from "next/image";
+'use client'
+
+import { useState } from "react";
+import { TilesContainer } from "./components/tilesContainer";
+import { TitleCard } from "./components/title";
+import { ButtonContainer } from "./components/ButtonContainer";
+import { initialWords } from "./utils/initialsWords";
+import { deselectAll, shuffle, timeout, moveSelectionToTopRow, removeTopRow } from "./utils/helpers";
+import { fetchCategory } from "./utils/data";
+import { MistakesRemaining } from "./components/mistakesRemaining";
 
 export default function Home() {
+  const [words, setWords] = useState(initialWords)
+  const [currentlySelected, setCurrentlySelected] = useState<string[]>([]);
+  const [categories, setCategories] = useState<Record<string, string[]>>({});
+  const [isLoading, setIsLoading] = useState(false);
+
+  const hasCurrentlySelected = currentlySelected.length > 0;
+  const submitAvailable = currentlySelected.length === 4;
+
+  const shuffleHandler = () => setWords(shuffle(words));
+
+  const animateRemoval = async () => {
+    setWords(moveSelectionToTopRow(words, currentlySelected))
+    await timeout(1000);
+    setWords(removeTopRow(words, currentlySelected))
+  }
+
+  const deselectAllHandler = () => {
+    setWords(deselectAll(structuredClone(words)))
+    setCurrentlySelected([]);
+  }
+
+  const submit = async () => {
+    setIsLoading(true);
+
+    const data = await fetchCategory(categories, currentlySelected)
+    if (!data) return;
+
+    const newCategories = structuredClone(categories);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (newCategories as any)[data.category] = [...currentlySelected]
+
+    setIsLoading(false);
+    await animateRemoval();
+    await timeout(200);
+    setCategories(newCategories)
+    setCurrentlySelected([]);
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+    <div className="flex flex-col flex-1 items-center justify-center font-sans max-h-screen">
+      <main className="flex flex-1 w-full flex-col py-30 px-8 max-w-6xl">
+        <TitleCard />
+        <div className="flex flex-col h-full text-center mt-24 justify-center items-center w-full">
+          <div className="mb-8">Create four groups of four!</div>
+          <TilesContainer
+            isLoading={isLoading}
+            categories={categories}
+            words={words}
+            setWords={setWords}
+            currentlySelected={currentlySelected}
+            setCurrentlySelected={setCurrentlySelected} />
+          <MistakesRemaining />
+          <ButtonContainer isLoading={isLoading} deselectAll={deselectAllHandler} shuffle={shuffleHandler} submit={submit} hasCurrentlySelected={hasCurrentlySelected} submitAvailable={submitAvailable} />
         </div>
       </main>
     </div>
