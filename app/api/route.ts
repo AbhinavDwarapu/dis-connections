@@ -1,4 +1,5 @@
 import { generateText, Output } from 'ai';
+import { getCache } from '@vercel/functions'
 import { after } from 'next/server'
 
 import { z } from 'zod'
@@ -63,7 +64,12 @@ const asTitle = (category: string) => {
     return cleaned || 'UNCATEGORISED'
 }
 
-const categoryCache = new Map<string, string>()
+const categoryCache = getCache({ namespace: 'category' })
+
+const readCachedCategory = async (cacheKey: string) => {
+    const cachedCategory = await categoryCache.get(cacheKey).catch(() => null)
+    return typeof cachedCategory === 'string' ? cachedCategory : undefined
+}
 
 const verifyAndCache = async (cacheKey: string, words: string, category: string) => {
     const startedAt = performance.now()
@@ -77,7 +83,7 @@ Draft title: ${category}`,
     })
 
     const verifiedCategory = output.fits ? category : asTitle(output.category)
-    categoryCache.set(cacheKey, verifiedCategory)
+    await categoryCache.set(cacheKey, verifiedCategory)
 
     const elapsedMs = Math.round(performance.now() - startedAt)
     console.log(`verifyAndCache: ${elapsedMs}ms`)
@@ -87,7 +93,7 @@ export async function POST(req: Request) {
     const { words, categories }: CategoryRequest = await req.json();
 
     const cacheKey = words.split(' ').sort().join(' ')
-    const cachedCategory = categoryCache.get(cacheKey)
+    const cachedCategory = await readCachedCategory(cacheKey)
     const isAlreadyFound = cachedCategory !== undefined && categories.split(',').includes(cachedCategory)
 
     if (cachedCategory && !isAlreadyFound) return Response.json({ category: cachedCategory })
