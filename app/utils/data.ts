@@ -1,8 +1,5 @@
 interface CategoryResponse {
     category: string
-    items: string[]
-    mechanism: string
-    confidence: string
 }
 
 export const fetchCategory = async (categories: Record<string, string[]>, currentlySelected: string[]): Promise<CategoryResponse | null> => {
@@ -18,7 +15,7 @@ export const fetchCategory = async (categories: Record<string, string[]>, curren
         return null
     }
 
-    const data: CategoryResponse = JSON.parse(await response.json())
+    const data: CategoryResponse = await response.json()
 
     return data
 }

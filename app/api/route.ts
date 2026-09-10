@@ -1,7 +1,4 @@
-import {
-    generateText,
-    Output,
-} from 'ai';
+import { generateText, Output } from 'ai';
 
 import { z } from 'zod'
 
@@ -10,75 +7,43 @@ interface CategoryRequest {
     categories: string
 }
 
+const categorySchema = z.object({
+    category: z.string(),
+})
+
+const systemPrompt = `You name the connection between four words in a Connections-style word game. The player can pick any four words on the board, so you always return a category — refusing is not an option. The connection must be literally true of all four words, and a true plain category beats a false clever one.
+
+Take the first rule below that holds for all four. Do not weigh the rest.
+1. SAME KIND OF THING — all four are birds / landforms / tools / brands / body parts.
+2. SAME MEANING — all four can mean one thing, including as verbs or slang.
+3. SHARED WORD — all four go before or after one word: ___ SIGN, FIRE ___.
+4. PART OF A NAME — all four appear in one film / band / brand / character / place.
+5. HIDDEN WORD — CRAVEN hides RAVEN, BOUQUET hides QUE — or another wordplay you can spell out.
+6. SHARED FORM — all four contain a double letter, all four end in -ER.
+
+Return the title and nothing else: UPPERCASE, two to five words, no period, no hedge, no refusal.
+Name the thing, not the machinery: HIDDEN BIRDS, not "BIRD NAMES HIDDEN OR VISIBLE". VERBS MEANING LEAD, not "GUIDE".
+Use ___ for the blank in before/after titles.
+Write it the way the NYT does: THINGS WITH TEETH · SLANG FOR ZERO · MOVE QUICKLY · HIDDEN BIRDS · ___ BOARD · KINDS OF PAPER · PARTS OF A RIVER.`
+
+const hedge = /^(low|medium|high)[\s:—-]+confidence[\s:—-]*|^(cannot|could not|no)\b.*$/i
+
+const asTitle = (category: string) => {
+    const cleaned = category.replace(hedge, '').replace(/[.\s]+$/, '').trim().toUpperCase()
+    return cleaned || 'UNCATEGORISED'
+}
+
 export async function POST(req: Request) {
     const { words, categories }: CategoryRequest = await req.json();
-    console.log(words, categories)
 
-    const { text, content } = await generateText({
+    const { output } = await generateText({
         model: "openai/gpt-5.6-luna-fast",
-        output: Output.object({
-            schema: z.object({
-                category: z.string(),
-                items: z.array(z.string()),
-                mechanism: z.string(),
-                confidence: z.string()
-            }),
-        }),
-        providerOptions: {
-            openai: {
-                textVerbosity: 'low', // Produces terse, minimal responses
-            },
-        },
-        // providerOptions: {
-        //     google: {
-        //         thinkingConfig: {
-        //             thinkingLevel: 'low',
-        //             includeThoughts: false,
-        //         },
-        //     },
-        // },
-        prompt: `You are a category writer for a New York Times Connections-style word game.
-
-Given exactly four words or phrases, find the strongest connection shared by all four and write a concise category title.
-
-Rules:
-- You must always return a category. "NO CLEAN CONNECTION" is not an allowed response.
-- Search broadly and creatively until you find a connection that includes all four items.
-- If no obvious connection exists, consider:
-  - synonyms or members of the same group
-  - words that precede or follow the same word
-  - words within titles, names, quotations, brands, or common phrases
-  - adding, removing, changing, or rearranging letters
-  - homophones, anagrams, hidden words, abbreviations, or silent letters
-  - shared prefixes, suffixes, spellings, sounds, or pronunciations
-  - associations with a specific person, place, work, event, or concept
-  - puns, rebuses, slang, dialect, and alternate meanings
-- Every item must fit the suggested category.
-- Do not use four unrelated explanations merely to force a category.
-- If the connection is indirect, make the intermediate step explicit.
-- For compound-word categories, state the shared word and whether it comes before or after each item.
-- For transformations, explain the exact operation consistently.
-- Use the most specific defensible category title available.
-- Category titles should be short, written in uppercase, and resemble Connections category titles.
-- Never decline, ask for different words, or say that no connection exists.
-- Never reuse a category that has already been found, or a mechanism close enough to be mistaken for it.
-
-Return exactly this format:
-
-CATEGORY: [short category title]
-ITEMS:
-- [item]: [concise explanation of how it fits]
-- [item]: [concise explanation of how it fits]
-- [item]: [concise explanation of how it fits]
-- [item]: [concise explanation of how it fits]
-MECHANISM: [direct category, shared word, wordplay, association, etc.]
-CONFIDENCE: [high, medium, or low]
-
-Already found categories:
-${categories}
-
+        reasoning: 'low',
+        output: Output.object({ schema: categorySchema }),
+        system: systemPrompt,
+        prompt: `Find a category for these words, categories already found (do not reuse these or anything close): ${categories || 'none yet'}
 Words: ${words}`,
     });
 
-    return Response.json(text)
+    return Response.json({ category: asTitle(output.category) })
 }

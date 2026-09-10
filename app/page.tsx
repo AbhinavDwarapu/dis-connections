@@ -22,7 +22,7 @@ export default function Home() {
 
   const animateRemoval = async () => {
     setWords(moveSelectionToTopRow(words, currentlySelected))
-    await timeout(1000);
+    await timeout(1500);
     setWords(removeTopRow(words, currentlySelected))
   }
 
@@ -35,14 +35,17 @@ export default function Home() {
     setIsLoading(true);
 
     const data = await fetchCategory(categories, currentlySelected)
-    if (!data) return;
+    if (!data) {
+      setIsLoading(false);
+      return;
+    }
 
     const newCategories = structuredClone(categories);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (newCategories as any)[data.category] = [...currentlySelected]
 
-    setIsLoading(false);
     await animateRemoval();
+    setIsLoading(false);
     await timeout(200);
     setCategories(newCategories)
     setCurrentlySelected([]);
