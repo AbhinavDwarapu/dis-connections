@@ -33,8 +33,16 @@ const asTitle = (category: string) => {
     return cleaned || 'UNCATEGORISED'
 }
 
+const categoryCache = new Map<string, string>()
+
 export async function POST(req: Request) {
     const { words, categories }: CategoryRequest = await req.json();
+
+    const cacheKey = words.split(' ').sort().join(' ')
+    const cachedCategory = categoryCache.get(cacheKey)
+    const isAlreadyFound = cachedCategory !== undefined && categories.split(',').includes(cachedCategory)
+
+    if (cachedCategory && !isAlreadyFound) return Response.json({ category: cachedCategory })
 
     const { output } = await generateText({
         model: "openai/gpt-5.6-luna-fast",
@@ -45,5 +53,8 @@ export async function POST(req: Request) {
 Words: ${words}`,
     });
 
-    return Response.json({ category: asTitle(output.category) })
+    const category = asTitle(output.category)
+    categoryCache.set(cacheKey, category)
+
+    return Response.json({ category })
 }
