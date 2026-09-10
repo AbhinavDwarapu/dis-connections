@@ -4,6 +4,7 @@ import { after } from 'next/server'
 
 import { z } from 'zod'
 
+import { initialWords } from '../utils/initialsWords';
 interface CategoryRequest {
     words: string
     categories: string
@@ -93,6 +94,11 @@ export async function POST(req: Request) {
     const { words, categories }: CategoryRequest = await req.json();
 
     const cacheKey = words.split(' ').sort().join(' ')
+    const selectedWords = words.split(' ')
+    const isOnBoard = (word: string) => Object.hasOwn(initialWords, word)
+    const isFourDistinctBoardWords = new Set(selectedWords).size === 4 && selectedWords.every(isOnBoard)
+
+    if (!isFourDistinctBoardWords) return Response.json({ error: 'Selection must be four distinct words from the board' }, { status: 400 })
     const cachedCategory = await readCachedCategory(cacheKey)
     const isAlreadyFound = cachedCategory !== undefined && categories.split(',').includes(cachedCategory)
 
