@@ -66,6 +66,7 @@ const asTitle = (category: string) => {
 const categoryCache = new Map<string, string>()
 
 const verifyAndCache = async (cacheKey: string, words: string, category: string) => {
+    const startedAt = performance.now()
     const { output } = await generateText({
         model,
         reasoning: 'medium',
@@ -77,6 +78,9 @@ Draft title: ${category}`,
 
     const verifiedCategory = output.fits ? category : asTitle(output.category)
     categoryCache.set(cacheKey, verifiedCategory)
+
+    const elapsedMs = Math.round(performance.now() - startedAt)
+    console.log(`verifyAndCache: ${elapsedMs}ms`)
 }
 
 export async function POST(req: Request) {
