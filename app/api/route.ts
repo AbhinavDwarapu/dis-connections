@@ -4,14 +4,15 @@ import { after } from 'next/server'
 
 import { z } from 'zod'
 
+import { localCache, toCacheKey } from '../utils/localCache'
 import { initialWords } from '../utils/initialsWords';
+
 interface CategoryRequest {
     words: string
     categories: string
 }
 
-const model = "openai/gpt-5.6-luna"
-const model_fast = "openai/gpt-5.6-luna-fast"
+const model = "openai/gpt-5.6-luna-fast"
 
 const categorySchema = z.object({
     category: z.string(),
@@ -65,11 +66,14 @@ const asTitle = (category: string) => {
     return cleaned || 'UNCATEGORISED'
 }
 
-const categoryCache = getCache({ namespace: 'category' })
+const remoteCache = getCache({ namespace: 'category' })
 
 const readCachedCategory = async (cacheKey: string) => {
-    const cachedCategory = await categoryCache.get(cacheKey).catch(() => null)
-    return typeof cachedCategory === 'string' ? cachedCategory : undefined
+    const localCategory = localCache.get(cacheKey)
+    if (localCategory) return localCategory
+
+    const remoteCategory: unknown | null = await remoteCache.get(cacheKey)
+    return typeof remoteCategory === 'string' ? remoteCategory : undefined
 }
 
 const verifyAndCache = async (cacheKey: string, words: string, category: string) => {
@@ -84,7 +88,7 @@ Draft title: ${category}`,
     })
 
     const verifiedCategory = output.fits ? category : asTitle(output.category)
-    await categoryCache.set(cacheKey, verifiedCategory)
+    await remoteCache.set(cacheKey, verifiedCategory)
 
     const elapsedMs = Math.round(performance.now() - startedAt)
     console.log(`verifyAndCache: ${elapsedMs}ms`)
@@ -93,19 +97,21 @@ Draft title: ${category}`,
 export async function POST(req: Request) {
     const { words, categories }: CategoryRequest = await req.json();
 
-    const cacheKey = words.split(' ').sort().join(' ')
     const selectedWords = words.split(' ')
     const isOnBoard = (word: string) => Object.hasOwn(initialWords, word)
     const isFourDistinctBoardWords = new Set(selectedWords).size === 4 && selectedWords.every(isOnBoard)
 
     if (!isFourDistinctBoardWords) return Response.json({ error: 'Selection must be four distinct words from the board' }, { status: 400 })
+
+
+    const cacheKey = toCacheKey(selectedWords)
     const cachedCategory = await readCachedCategory(cacheKey)
     const isAlreadyFound = cachedCategory !== undefined && categories.split(',').includes(cachedCategory)
 
     if (cachedCategory && !isAlreadyFound) return Response.json({ category: cachedCategory })
 
     const { output } = await generateText({
-        model: model_fast,
+        model,
         reasoning: 'low',
         output: Output.object({ schema: categorySchema }),
         system: systemPrompt,
